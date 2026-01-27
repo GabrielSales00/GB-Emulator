@@ -1,0 +1,14 @@
+#include <stdio.h>
+#include <stdint.h>
+
+
+uint8_t opcode_len_table[256] = {
+	[0x00] = 1, //NOP
+	[0x01] = 3, //LD BC, d16
+	[0x02] = 1, //LD BC, A
+	[0x03] = 1, //INC BC
+	[0x04] = 1, //INC B
+	[0x05] = 1, //DEC B
+	[0x06] = 2, //LD B, db
+	[0x07] = 1, //RLCA
+	[0x08] = 
