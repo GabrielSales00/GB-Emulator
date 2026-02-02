@@ -1,4 +1,5 @@
 #ifndef CPU_H
+
 #define CPU_H
 
 #define GB_BOOTROM_SIZE 0x100
@@ -45,6 +46,10 @@ typedef struct CPU {
 CPU * newCPU();
 
 unsigned char load_rom(char * file_path);
+
+uint8_t cpu_read8(CPU * cpu, uint8_t addr);
+
+uint8_t cpu_write8(CPU * cpu, uint8_t * reg, uint8_t addr);
 
 int run_cpu(CPU * CPU, unsigned char * memory);
 

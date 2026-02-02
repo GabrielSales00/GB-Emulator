@@ -25,6 +25,10 @@ unsigned char load_rom(char * path) {
     return bootrom;
 }
 
+uint8_t cpu_read8(CPU * cpu, uint8_t addr);
+
+uint8_t cpu_write8(CPU * cpu, uint8_t reg, uint8_t addr);
+
 void set_flags_false_all(CPU * cpu) {
     cpu->flags.zero = false;
     cpu->flags.subtraction = false;
@@ -130,7 +134,7 @@ void RRCA(CPU * cpu) {
     }
 }
 
-void RLA (CPU * cpu, uint8_t * reg) {
+void RLA(CPU * cpu, uint8_t * reg) {
     uint8_t old_carry = cpu->flags.carry ? 1 : 0;
     uint8_t new_carry = (*reg >> 7) & 1;
     *reg = (*reg << 1) | old_carry;
@@ -247,52 +251,156 @@ void ADC_A(CPU * cpu, uint8_t value) {
 }
 
 
-void SUB_A(CPU * cpu, uint8_t value);
+void SUB_A(CPU * cpu, uint8_t value) {
+    uint16_t result = cpu->reg.a - value;
+    cpu->flags.subtraction = true;
+    if ((result & 0xFF) == 0) {
+        cpu->flags.zero = true;
+    }
+    if ((value & 0x0F) > (cpu->reg.a & 0x0F)) {
+        cpu->flags.h_carry = true;
+    }
+    if (value > (result & 0xFF)) {
+        cpu->flags.carry = true;
+    }
+    cpu->reg.a = result;
+}
 
-void SBC_A(CPU * cpu, uint8_t value);
+void SBC_A(CPU * cpu, uint8_t value) {
+    uint16_t result = cpu->reg.a - value - cpu->flags.carry;
+    cpu->flags.subtraction = true;
+    if ((result & 0xFF) == 0) {
+        cpu->flags.zero = true;
+    }
+    if ((cpu->flags.carry & 0x0F) + (value & 0x0F) > (cpu->reg.a & 0x0F)) {
+        cpu->flags.h_carry = true;
+    }
+    if (cpu->flags.carry + value > result & 0xFF) {
+        cpu->flags.carry = true;
+    }
+    cpu->reg.a = result;
+}
 
-void AND_A(CPU * cpu, uint8_t value);
+void AND_A(CPU * cpu, uint8_t value) {
+    cpu->reg.a = (cpu->reg.a & value);
+}
 
-void XOR_A(CPU * cpu, uint8_t value);
+void XOR_A(CPU * cpu, uint8_t value) {
+    cpu->reg.a = (cpu->reg.a ^ value);
+}
 
-void OR_A(CPU * cpu, uint8_t value);
+void OR_A(CPU * cpu, uint8_t value) {
+    cpu->reg.a = (cpu->reg.a | value);
+}
 
-void CP_A(CPU * cpu, uint8_t value);
+void CP_A(CPU * cpu, uint8_t value) {
+    uint16_t result = cpu->reg.a - value;
+    cpu->flags.subtraction = true;
+    if ((result & 0xFF) == 0) {
+        cpu->flags.zero = true;
+    }
+    if ((value & 0x0F) > (cpu->reg.a & 0x0F)) {
+        cpu->flags.h_carry = true;
+    }
+    if (value > (result & 0xFF)) {
+        cpu->flags.carry = true;
+    }
+}
 
-void RET(CPU *cpu);
+void RET(CPU *cpu) {
+    uint8_t lo = cpu_read8(cpu, cpu->reg.sp);
+    uint8_t hi = cpu_read8(cpu, cpu->reg.sp+1);
+    cpu->reg.sp += 2;
+    cpu->reg.pc = (hi << 8) | lo; //(hi << 8) is 16 bit
+}
 
-void RET_Z(CPU *cpu);
+void RET_Z(CPU *cpu) {
+    if (cpu->flags.zero) {
+        RET(cpu);
+    }
+}
 
-void RET_NZ(CPU *cpu);
+void RET_NZ(CPU *cpu) {
+    if (!cpu->flags.zero) {
+        RET(cpu);
+    }
+}
 
-void RET_C(CPU *cpu);
+void RET_C(CPU *cpu) {
+    if (cpu->flags.carry) {
+        RET(cpu);
+    }
+}
 
-void RET_NC(CPU *cpu);
+void RET_NC(CPU *cpu) {
+    if (!cpu->flags.carry) {
+        RET(cpu);
+    }
+}
 
-void POP_16(CPU * cpu, uint16_t * reg);
+void POP_16(CPU * cpu, uint16_t * reg) {
+    uint16_t low = cpu_read8(cpu, cpu->reg.sp);
+    cpu->reg.sp += 1;
+    uint16_t high = cpu_read8(cpu, cpu->reg.sp);
+    cpu->reg.sp += 1;
 
-void JP(CPU * cpu, uint16_t addr);
+    *reg = (high << 8) | low;
 
-void CALL(CPU * cpu, uint16_t addr);
+}
 
-void PUSH_16(CPU * cpu, uint16_t * reg);
+void JP(CPU * cpu) { //Jump to immediate next 16 bit
+    uint8_t high = cpu_read8(cpu, cpu->reg.pc + 1);
+    uint8_t low = cpu_read8(cpu, cpu->reg.pc+2);
+
+    uint16_t addr = (high << 8) | low;
+
+    cpu->reg.pc = addr;
+}
+
+void CALL(CPU * cpu, uint16_t addr) {
+    uint8_t high = cpu_read16(cpu, cpu->reg.pc+1);
+    uint8_t low = cpu_read16(cpu, cpu->reg.pc+2);
+
+    uint16_t addr = (high << 8) | low;
+
+    //return address of the next instruction and call is 3 bytes
+    uint16_t ret = cpu->reg.pc+3;
+
+    //push high
+    cpu->reg.sp--;
+    cpu_write8(cpu, cpu->reg.sp, (ret >> 8) & 0xFF);
+
+    cpu->reg.sp--;
+    cpu_write8(cpu, cpu->reg.sp, ret & 0xFF);
+
+    cpu->reg.pc = addr;
+
+}
+
+void PUSH_16(CPU * cpu, uint16_t * reg) {
+    cpu->reg.sp--;
+    cpu_write8(cpu, cpu->reg.sp, (*reg >> 8) & 0xFF);
+
+    cpu->reg.sp--;
+    cpu_write8(cpu, cpu->reg.sp, *reg & 0xFF);
+}
 
 void ADD_HL(CPU * cpu, uint16_t value) {
     uint32_t result = cpu->reg.hl + value;
 
-    cpu->flags.n = false;
+    cpu->flags.subtraction = false;
 
     if ((cpu->reg.hl & 0x0FFF) + (value & 0x0FFF) > 0x0FFF) {
-        cpu->flags->h_carry = true;
+        cpu->flags.h_carry = true;
     }
     else {
-        cpu->flags->h_carry = false;
+        cpu->flags.h_carry = false;
     }
     if (result > 0xFFFF) {
-        cpu->flags->carry = true;
+        cpu->flags.carry = true;
     }
     else {
-        cpu->flags->carry = false;
+        cpu->flags.carry = false;
     }
 
     cpu->reg.hl = (uint16_t) result;
