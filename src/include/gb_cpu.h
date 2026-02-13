@@ -30,8 +30,10 @@ typedef struct ArithmeticFlags{
 typedef struct StateFlags {
     bool ime;
     bool ie;
+    bool enable_interrupts;
     bool iflags;
     bool halted;
+    bool stopped;
     bool halt_bug;
 } StateFlags;
 

@@ -406,57 +406,162 @@ void ADD_HL(CPU * cpu, uint16_t value) {
     cpu->reg.hl = (uint16_t) result;
 }
 
-void RST_8(CPU * cpu, uint8_t value);
+void RST_8(CPU * cpu, uint8_t value) {
+    uint16_t return_addr = cpu->reg.pc+1;
+    PUSH_16(cpu, &return_addr);
+    cpu->reg.pc = value;
+}
 
 void PREFIX_CB(CPU * cpu);
 
-void LDH_mem_A(CPU *cpu, uint8_t offset);
+void LDH_mem_A(CPU *cpu, uint8_t * addr) {
+    *addr = cpu->reg.a;
+}
 
-void LDH_A_mem(CPU *cpu, uint8_t offset);
+void LDH_A_mem(CPU *cpu, uint8_t * addr) {
+    uint16_t val = 0xFF00 | *addr;
+    cpu->reg.a = val;
+}
 
-void LD_C_A(CPU *cpu);
+void LD_8(CPU *cpu, uint8_t * right, uint8_t * left) {
+    cpu_write8(cpu, right, left);
+}
 
-void LD_A_C(CPU *cpu);
+void LD_16(CPU *cpu, uint16_t * right, uint16_t * left) {
+    cpu_write(cpu, right, left);
+}
 
-void JR_e8(CPU * cpu, int8_t offset);
+void JR_e8(CPU * cpu, int8_t offset) {
+    cpu->reg.pc += offset;
+}
 
-void JR_Z_e8(CPU *cpu, int8_t offset);
+void JR_Z_e8(CPU *cpu, int8_t offset) {
+    if (cpu->flags.zero) {
+        cpu->reg.pc += offset;
+    }
+}
 
-void JR_NZ_e8(CPU *cpu, int8_t offset);
+void JR_NZ_e8(CPU *cpu, int8_t offset) {
+    if (!cpu->flags.zero) {
+        cpu->reg.pc += offset;
+    }
+}
 
-void JR_C_e8(CPU *cpu, int8_t offset);
+void JR_C_e8(CPU *cpu, int8_t offset) {
+    if (cpu->flags.carry) {
+        cpu->reg.pc += offset;
+    }
+}
 
-void JR_NC_e8(CPU *cpu, int8_t offset);
+void JR_NC_e8(CPU *cpu, int8_t offset) {
+    if (!cpu->flags.carry) {
+        cpu->reg.pc += offset;
+    }
+}
 
-void DI(CPU *cpu);
 
-void EI(CPU *cpu);
+void DI(CPU *cpu) {
+    cpu->state.enable_interrupts = false;
+}
 
-void STOP(CPU *cpu);
+void EI(CPU *cpu) {
+    cpu->state.enable_interrupts = true;
+}
 
-void RETI(CPU *cpu);
+void STOP(CPU *cpu) {
+    cpu->state.stopped = true;
+}
+
+void RETI(CPU *cpu) {
+    EI(cpu);
+    RET(cpu);
+}
 
 
 /*
     Prefixed ($CB $xx)
 */
 
-void RLC(CPU * cpu, uint8_t * reg);
+void RLC(CPU * cpu, uint8_t * reg) {
+    uint8_t new_c = (*reg >> 7) & 1; // 1 = 00000001
+    *reg = (*reg << 1) | new_c;
 
-void RRC(CPU * cpu, uint8_t * reg);
+    cpu->flags.carry = new_c;
+    cpu->flags.zero = (*reg == 0);
+    cpu->flags.subtraction = false;
+    cpu->flags.h_carry = false;
+}
 
-void RL(CPU * cpu, uint8_t * reg);
 
-void RR(CPU * cpu, uint8_t * reg);
+void RRC(CPU * cpu, uint8_t * reg) {
+    uint8_t new_c = *reg & 1; //extracts the least significant bit
+    *reg = (*reg >> 1) | (new_c << 7);
 
-void SLA(CPU * cpu, uint8_t * reg);
+    cpu->flags.carry = new_c;
+    cpu->flags.zero = (*reg == 0);
+    cpu->flags.h_carry = false;
+    cpu->flags.subtraction = false;
+}
 
-void SRA(CPU * cpu, uint8_t * reg);
+void RL(CPU * cpu, uint8_t * reg) {
+    uint8_t new_c = (*reg >> 7) & 1;
+    *reg = (*reg << 1) | cpu->flags.carry;
+    cpu->flags.carry = new_c;
+    cpu->flags.zero = (*reg == 0);
+    cpu->flags.subtraction = false;
+    cpu->flags.h_carry = false;
+}
 
-void SWAP(CPU * cpu, uint8_t * reg);
+void RR(CPU * cpu, uint8_t * reg) {
+    uint8_t new_c = *reg & 1;
+    *reg = (*reg >> 1) | (new_c << 7);
+    cpu->flags.carry = new_c;
+    cpu->flags.zero = (*reg == 0);
+    cpu->flags.subtraction = false;
+    cpu->flags.h_carry = false;
+}
+void SLA(CPU * cpu, uint8_t * reg) {
+    uint8_t new_c = (*reg >> 7) & 1;
+    *reg = (*reg << 1) | 0;
+    cpu->flags.carry = new_c;
+    cpu->flags.zero = (*reg == 0);
+    cpu->flags.subtraction = false;
+    cpu->flags.h_carry = false;
+}
 
-void BIT(CPU * cpu, uint8_t bit, uint8_t * reg);
+void SRA(CPU * cpu, uint8_t * reg) {
+    uint8_t new_c = *reg & 1;
+    uint8_t bit7 = (*reg >> 1) & 1;
+    *reg = (*reg >> 1) | (bit7 << 7);
+    cpu->flags.carry = new_c;
+    cpu->flags.zero = (*reg == 0);
+    cpu->flags.subtraction = false;
+    cpu->flags.h_carry = false;
+}
 
-void RES(CPU * cpu, uint8_t bit, uint8_t * reg);
+void SWAP(CPU * cpu, uint8_t * reg) {
+    uint8_t new_upper = (*reg << 4);
+    uint8_t new_lower = (*reg >> 4);
 
-void SET(CPU * cpu, uint8_t bit, uint8_t * reg);
+    *reg = new_upper | new_lower;
+
+    cpu->flags.zero = (*reg == 0);
+    cpu->flags.subtraction = false;
+    cpu->flags.h_carry = false;
+    cpu->flags.carry = false;
+}
+
+void BIT(CPU * cpu, uint8_t bit, uint8_t * reg) {
+    bool bit_set = (*reg >> bit) & 1;
+    cpu->flags.zero = !bit_set;
+    cpu->flags.subtraction = false;
+    cpu->flags.h_carry = true;
+}
+
+void RES(CPU * cpu, uint8_t bit, uint8_t * reg) {
+    *reg = *reg & ~(1 << bit); //take number 00001, shift it to the bit we want, reverse it to 11110 and use AND
+}
+
+void SET(CPU * cpu, uint8_t bit, uint8_t * reg) {
+    *reg = *reg | ~(1 << bit);
+}
