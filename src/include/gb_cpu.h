@@ -47,15 +47,19 @@ typedef struct CPU {
 
 CPU * newCPU();
 
-unsigned char load_rom(char * file_path);
-
-uint8_t cpu_read8(CPU * cpu, uint8_t addr);
-
-uint8_t cpu_write8(CPU * cpu, uint8_t * reg, uint8_t addr);
+unsigned char load_bootrom(char * file_path);
 
 int run_cpu(CPU * CPU, unsigned char * memory);
 
-void clear_flags(CPU * cpu);
+
+/*
+    MEMORY operations
+*/
+
+uint8_t cpu_read8(CPU * cpu, uint16_t addr);
+
+void cpu_write8(CPU * cpu, uint16_t addr, uint8_t value);
+
 
 /*
     Instruction set (ISA)
@@ -135,9 +139,7 @@ void LDH_mem_A(CPU *cpu, uint8_t offset);
 
 void LDH_A_mem(CPU *cpu, uint8_t offset);
 
-void LD_C_A(CPU *cpu);
-
-void LD_A_C(CPU *cpu);
+void LD_8(uint8_t * buffer, uint8_t value); //REGISTER assignment, not memory (use cpu_write)
 
 void JR_e8(CPU * cpu, int8_t offset);
 

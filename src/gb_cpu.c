@@ -3,7 +3,126 @@
 #include <stdbool.h>
 #include <stdio.h>
 
-unsigned char load_rom(char * path) {
+/* 
+    CPU execution functions
+*/
+
+int execute_instructions_from_memory(CPU * cpu, unsigned char * memory) {
+    int pos = 0;
+    while(1) {
+        switch(memory[cpu->reg.pc]) {
+            case 0x00: //NOP
+                cpu->reg.pc++;
+                break;
+
+            //CHECARRR
+            case 0x01:
+                uint16_t value = cpu->reg.pc+1 | 
+                                (cpu->reg.pc+2 << 8);
+
+                uint16_t addr = (cpu->reg.b << 8) |
+                                cpu->reg.c; 
+                LD_8(&cpu->reg.b, value);
+                break;
+
+            case 0x02:
+                cpu_write8(cpu, (cpu->reg.b << 8) | cpu->reg.c, cpu->reg.a);
+                cpu->reg.pc++;
+                break;
+
+            case 0x03:
+                INC_8(cpu, (cpu->reg.b << 8) | cpu->reg.c);
+                cpu->reg.pc++;
+                break;
+
+            case 0x04:
+                INC_8(cpu, cpu->reg.b);
+                cpu->reg.pc++;
+                break;
+
+            case 0x05:
+                DEC_8(cpu, cpu->reg.b);
+                cpu->reg.pc++;
+                break;
+
+            case 0x06:
+                uint8_t value = cpu->reg.pc+1;
+                LD_B_u8(cpu, value);
+                cpu->reg.pc+=2;
+                break;
+
+            case 0x07:
+                RLCA(cpu);
+                cpu->reg.pc++;
+                break;
+
+            case 0x08:
+                uint8_t addr_hi = cpu_read8(cpu, cpu->reg.pc+2);
+                uint8_t addr_lo = cpu_read8(cpu, cpu->reg.pc+1);
+                uint16_t addr = (addr_hi << 8) | addr_lo;
+
+                cpu_write8(cpu, addr, (cpu->reg.sp & 0xFF));
+                cpu_write8(cpu, addr+1, (cpu->reg.sp >> 8) & 0xFF);
+
+                cpu->reg.pc+=3;
+                break;
+            case 0x09:
+                ADD_HL(cpu, (cpu->reg.b << 8 | cpu->reg.c));
+
+                cpu->reg.pc++;
+                break;
+
+            case 0x0a:
+                uint8_t bc_mem = cpu_read8(cpu, (cpu->reg.b << 8) | cpu->reg.c);
+                LD_8(&cpu->reg.a, bc_mem);
+
+                cpu->reg.pc++;
+                break;
+            case 0x0b:
+                uint8_t bc = (cpu->reg.b << 8) | cpu->reg.c;
+                bc--;
+                cpu->reg.b = (cpu->reg.b >>8) & 0xFF;
+                cpu->reg.c = cpu->reg.c & 0xFF;
+                cpu->reg.pc++;
+                break;
+            case 0x0c:
+                INC_8(cpu, cpu->reg.c);
+                cpu->reg.pc++;
+                break;
+            case 0x0d:
+                DEC_8(cpu, cpu->reg.c);
+                cpu->reg.pc++;
+                break;
+            case 0x0e:
+                uint8_t val = cpu_read8(cpu, cpu->reg.pc)
+                LD_8(&cpu->reg.c, val);
+                cpu->reg.pc+=2;
+                break;
+            case 0x0f:
+                RRCA(cpu);
+                cpu->reg.pc++;
+                break;
+            case 0x11:            
+            case 0x12:
+            case 0x13:
+            case 0x14:
+            case 0x15:
+            case 0x16:
+            case 0x17:
+            case 0x18:
+            case 0x19:
+            case 0x1a:
+            case 0x1b:
+            case 0x1c:
+            case 0x1d:
+            case 0x1e:
+            case 0x1f:
+            
+        }
+    }
+}
+
+unsigned char load_bootrom(char * path) {
     unsigned char bootrom[0x100]; //bootrom's size is 256 bytes long from 0x0000 0x00ff
 
     FILE * f = fopen(path, "rb");
@@ -25,9 +144,13 @@ unsigned char load_rom(char * path) {
     return bootrom;
 }
 
-uint8_t cpu_read8(CPU * cpu, uint8_t addr);
+uint8_t cpu_read8(CPU * cpu, uint16_t addr) {
+    return cpu->memory[addr];
+}
 
-uint8_t cpu_write8(CPU * cpu, uint8_t reg, uint8_t addr);
+void cpu_write8(CPU * cpu, uint16_t addr, uint8_t value) {
+    cpu->memory[addr] = value;
+}
 
 void set_flags_false_all(CPU * cpu) {
     cpu->flags.zero = false;
@@ -70,6 +193,10 @@ void DEC_8(CPU * cpu, uint8_t * reg) {
         cpu->flags.h_carry = true;
     }
     *reg = result;
+}
+
+void DEC_16(CPU * cpu, uint16_t * reg) {
+    *reg -= 1;
 }
 
 void INC_mem(CPU *cpu, uint16_t addr) {
@@ -423,12 +550,9 @@ void LDH_A_mem(CPU *cpu, uint8_t * addr) {
     cpu->reg.a = val;
 }
 
-void LD_8(CPU *cpu, uint8_t * right, uint8_t * left) {
-    cpu_write8(cpu, right, left);
-}
 
-void LD_16(CPU *cpu, uint16_t * right, uint16_t * left) {
-    cpu_write(cpu, right, left);
+void LD_8(uint8_t * buffer, uint8_t value) {
+    *buffer = value;
 }
 
 void JR_e8(CPU * cpu, int8_t offset) {
