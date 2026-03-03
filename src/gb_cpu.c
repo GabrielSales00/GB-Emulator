@@ -31,17 +31,20 @@ int execute_instructions_from_memory(CPU * cpu, unsigned char * memory) {
                 break;
 
             case 0x03:
-                INC_8(cpu, (cpu->reg.b << 8) | cpu->reg.c);
+                uint16_t bc = (cpu->reg.b << 8) | cpu->reg.c;
+                bc++;
+                cpu->reg.b = (bc >> 8) & 0xFF;
+                cpu->reg.c = bc & 0xFF;
                 cpu->reg.pc++;
                 break;
 
             case 0x04:
-                INC_8(cpu, cpu->reg.b);
+                INC_8(cpu, &cpu->reg.b);
                 cpu->reg.pc++;
                 break;
 
             case 0x05:
-                DEC_8(cpu, cpu->reg.b);
+                DEC_8(cpu, &cpu->reg.b);
                 cpu->reg.pc++;
                 break;
 
@@ -86,15 +89,15 @@ int execute_instructions_from_memory(CPU * cpu, unsigned char * memory) {
                 cpu->reg.pc++;
                 break;
             case 0x0c:
-                INC_8(cpu, cpu->reg.c);
+                INC_8(cpu, &cpu->reg.c);
                 cpu->reg.pc++;
                 break;
             case 0x0d:
-                DEC_8(cpu, cpu->reg.c);
+                DEC_8(cpu, &cpu->reg.c);
                 cpu->reg.pc++;
                 break;
             case 0x0e:
-                uint8_t val = cpu_read8(cpu, cpu->reg.pc)
+                uint8_t val = cpu_read8(cpu, cpu->reg.pc+1);
                 LD_8(&cpu->reg.c, val);
                 cpu->reg.pc+=2;
                 break;
@@ -102,21 +105,159 @@ int execute_instructions_from_memory(CPU * cpu, unsigned char * memory) {
                 RRCA(cpu);
                 cpu->reg.pc++;
                 break;
-            case 0x11:            
+            case 0x10:
+                STOP(cpu);
+                cpu->reg.pc++;
+                break;            
+            case 0x11:
+                uint8_t lo = cpu_read8(cpu, cpu->reg.pc+1);
+                uint8_t hi = cpu_read8(cpu, cpu->reg.pc+2);
+                uint16_t val = (hi << 8) | lo;
+                LD_8(&cpu->reg.d, (val >> 8) & 0xFF);
+                LD_8(&cpu->reg.e, (val & 0xFF)); 
+                cpu->reg.pc+=3;
+                break;
             case 0x12:
+                cpu_write8(cpu, (cpu->reg.d << 8) | cpu->reg.e, cpu->reg.a);
+                cpu->reg.pc+=1;
+                break;
             case 0x13:
+                uint16_t de = (cpu->reg.d << 8) | cpu->reg.e;
+                de++;
+                cpu->reg.d = (de >> 8) & 0xFF;
+                cpu->reg.e = de & 0xFF;
+                cpu->reg.pc++;
+                break;
             case 0x14:
+                INC_8(cpu,&cpu->reg.d);
+                cpu->reg.pc++;
+                break;
             case 0x15:
+                DEC_8(cpu, &cpu->reg.d);
+                cpu->reg.pc++;
+                break;
             case 0x16:
+                uint8_t value = cpu_read8(cpu, cpu->reg.pc+1);
+                cpu->reg.d = value;
+                cpu->reg.pc+=2;
+                break;
             case 0x17:
+                RLA(cpu);
+                cpu->reg.pc++;
+                break;
             case 0x18:
+                JR_e8(cpu, (int8_t)cpu_read8(cpu, cpu->reg.pc+1));
+                cpu->reg.pc+=2;
+                break;
             case 0x19:
+                ADD_HL(cpu, (cpu->reg.d << 8) | cpu->reg.e);
+                cpu->reg.pc+=1;
+                break;
             case 0x1a:
+                cpu->reg.a = cpu_read8(cpu, (cpu->reg.d << 8) | cpu->reg.e);
+                cpu->reg.pc+=1;
+                break;
             case 0x1b:
+                uint16_t de = (cpu->reg.d << 8) | cpu->reg.e;
+                de-=1;
+                cpu->reg.d = (de >> 8) & 0xFF;
+                cpu->reg.e = de & 0xFF;
+                cpu->reg.pc++;               
             case 0x1c:
+                INC_8(cpu, &cpu->reg.e);
+                cpu->reg.pc++;
             case 0x1d:
+                DEC_8(cpu, &cpu->reg.e);
+                cpu->reg.pc++;
             case 0x1e:
+                cpu->reg.e = cpu_read8(cpu, cpu->reg.pc+1);
+                cpu->reg.pc+=2;
+                break;
             case 0x1f:
+                RRA(cpu);
+                cpu->reg.pc+=1;
+                break;
+            case 0x20:
+                JR_NZ_e8(cpu, (uint8_t) cpu_read8(cpu, cpu->reg.pc+1));
+                cpu->reg.pc+2;
+                break;
+            case 0x21:
+                uint8_t lo = cpu_read8(cpu, cpu->reg.pc+1);
+                uint8_t hi = cpu_read8(cpu, cpu->reg.pc+2);
+                cpu->reg.h = hi;
+                cpu->reg.l = lo;
+                cpu->reg.pc+=3;
+                break;
+            case 0x22:
+                uint16_t hl = ((cpu->reg.h << 8) | cpu->reg.l);
+                cpu_write8(cpu, hl, cpu->reg.a);
+                hl++;
+                cpu->reg.h = (hl >> 8) & 0xFF;
+                cpu->reg.l = (hl & 0xFF);
+                cpu->reg.pc++;
+                break;
+            case 0x23:
+                uint16_t hl = ((cpu->reg.h << 8) | cpu->reg.l);
+                hl++;
+                cpu->reg.h = (hl >> 8) & 0xFF;
+                cpu->reg.l = hl & 0xFF;
+                cpu->reg.pc++;
+                break; 
+            case 0x24:
+                INC_8(cpu, &cpu->reg.h);
+                cpu->reg.pc++;
+                break;
+            case 0x25:
+                DEC_8(cpu, &cpu->reg.h);
+                cpu->reg.pc++;
+                break;
+            case 0x26:
+                uint8_t u8 = cpu_read8(cpu, cpu->reg.pc+1);
+                LD_8(&cpu->reg.h, u8);
+                cpu->reg.pc+=2;
+                break;
+            case 0x27:
+                DAA(cpu);
+                cpu->reg.pc++;
+                break;
+            case 0x28:
+                JR_Z_e8(cpu, (int8_t)cpu_read8(cpu, cpu->reg.pc+1));
+                cpu->reg.pc+=2;
+                break;
+            case 0x29:
+                ADD_HL(cpu, (cpu->reg.h << 8) | cpu->reg.l);
+                cpu->reg.pc++;
+                break;
+            case 0x2a:
+                uint16_t hl = (cpu->reg.h << 8) | cpu->reg.l;
+                uint8_t val = cpu_read8(cpu, hl);
+                LD_8(&cpu->reg.a, val);
+                hl++;
+                cpu->reg.h = (hl >> 8) & 0xFF;
+                cpu->reg.l = hl & 0xFF;
+                cpu->reg.pc++;
+                break;
+            case 0x2b:
+                uint16_t hl = ((cpu->reg.h << 8) | cpu->reg.l);
+                hl--;
+                cpu->reg.h = (hl >> 8) & 0xFF;
+                cpu->reg.l = hl & 0xFF;
+                cpu->reg.pc++;
+                break;
+            case 0x2c:
+                INC_8(cpu, &cpu->reg.l);
+                cpu->reg.pc++;
+                break;
+            case 0x2d:
+                DEC_8(cpu, &cpu->reg.l);
+                cpu->reg.pc++;
+                break;
+            case 0x2e:
+                LD_8(&cpu->reg.l, cpu_read8(cpu, cpu->reg.pc+1));
+                cpu->reg.pc++;
+                break;
+            case 0x2f:
+                CPL(cpu);
             
         }
     }
@@ -168,7 +309,7 @@ void NOP(CPU * cpu) {
 }
 
 void INC_8(CPU * cpu, uint8_t * reg) {
-    uint8_t result = reg + 1;
+    uint8_t result = *reg + 1;
     cpu->flags.subtraction = false;
     if (result == 0) {
         cpu->flags.zero = true;
@@ -180,19 +321,15 @@ void INC_8(CPU * cpu, uint8_t * reg) {
 }
 
 void INC_16(CPU * cpu, uint16_t * reg) {
-    reg += 1;
+    uint8_t lo = (*reg & 0xFF);
+    uint8_t hi = (*reg >> 8) & 0xFF;
+    uint16_t value = (hi << 8) | lo;
+    value++;
+    *reg = value;
 }
 
 void DEC_8(CPU * cpu, uint8_t * reg) {
-    uint8_t result = reg - 1;
-    cpu->flags.subtraction = true;
-    if (result == 0) {
-        cpu->flags.zero = true;
-    }
-    if ((*reg & 0x0F) == 0) {
-        cpu->flags.h_carry = true;
-    }
-    *reg = result;
+    (*reg)++;
 }
 
 void DEC_16(CPU * cpu, uint16_t * reg) {
@@ -261,14 +398,14 @@ void RRCA(CPU * cpu) {
     }
 }
 
-void RLA(CPU * cpu, uint8_t * reg) {
+void RLA(CPU * cpu) {
     uint8_t old_carry = cpu->flags.carry ? 1 : 0;
-    uint8_t new_carry = (*reg >> 7) & 1;
-    *reg = (*reg << 1) | old_carry;
+    uint8_t new_carry = (cpu->reg.a >> 7) & 1;
+    cpu->reg.a = (cpu->reg.a << 1) | old_carry;
     cpu->flags.carry = new_carry;
     cpu->flags.subtraction = false;
     cpu->flags.h_carry = false;
-    if (*reg == 0) {
+    if (cpu->reg.a == 0) {
         cpu->flags.zero = true;
     }
 
